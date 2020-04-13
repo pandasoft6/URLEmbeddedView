@@ -53,46 +53,16 @@ protocol OGDataProviderProtocol: class {
     @discardableResult
     @nonobjc public func fetchOGData(urlString: String, completion: ((OpenGraph.Data, Error?) -> Void)? = nil) -> Task {
         let task = Task()
-
         queue.async { [weak self] in
-            self?.cacheManager.fetchOrInsertOGCacheData(url: urlString) { cache in
-                guard let me = self else { return }
-
-                if let updateDate = cache.updateDate {
-                    completion?(cache.ogData, nil)
-                    if fabs(updateDate.timeIntervalSinceNow) < me.updateInterval {
-                        return
-                    }
-                }
-
-                _ = me.downloader.fetchOGData(urlString: urlString, task: task) { [weak self] result in
-                    switch result {
-                    case let .success(data, isExpired):
-                        if let me = self {
-                            let cache = OGCacheData(ogData: data,
-                                                    createDate: cache.createDate,
-                                                    updateDate: Date())
-                            me.cacheManager.updateIfNeeded(cache: cache)
-                        }
-                        if !isExpired {
-                            completion?(data, nil)
-                        }
-                    case let .failure(error, isExpired):
-                        let ogData = cache.ogData
-                        if case .htmlDecodeFaild? = error as? OGSession.Error, let me = self {
-                            let newCache = OGCacheData(ogData: ogData,
-                                                       createDate: cache.createDate,
-                                                       updateDate: Date())
-                            me.cacheManager.updateIfNeeded(cache: newCache)
-                        }
-                        if !isExpired {
-                            completion?(ogData, nil)
-                        }
-                    }
+            _ = self?.downloader.fetchOGData(urlString: urlString, task: task) { [weak self] result in
+                switch result {
+                case let .success(data, isExpired):
+                    completion?(data, nil)
+                case let .failure(error, isExpired):
+                    completion?(OpenGraph.Data.empty(), nil)
                 }
             }
         }
-
         return task
     }
     
